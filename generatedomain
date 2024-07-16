@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# Check if domain name is provided
+if [ -z "$1" ]; then
+    echo "Usage: $0 domain_name"
+    exit 1
+fi
+
+DOMAIN=$1
+WEB_ROOT="/var/www/$DOMAIN/html"
+NGINX_AVAILABLE="/etc/nginx/sites-available/$DOMAIN"
+NGINX_ENABLED="/etc/nginx/sites-enabled/$DOMAIN"
+
+# Create web root directory
+sudo mkdir -p $WEB_ROOT
+
+# Set permissions
+sudo chown -R $USER:$USER $WEB_ROOT
+sudo chmod -R 755 /var/www/$DOMAIN
+
+# Create a sample index.html file
+echo "<html><head><title>Welcome to $DOMAIN</title></head><body><h1>Success! $DOMAIN is working!</h1></body></html>" | sudo tee $WEB_ROOT/index.html
+
+# Create Nginx server block configuration
+sudo tee $NGINX_AVAILABLE > /dev/null <<EOL
+server {
+    listen 80;
+    server_name $DOMAIN;
+
+    root $WEB_ROOT;
+    index index.html;
+
+    error_log /var/log/nginx/$DOMAIN.error.log;
+    access_log /var/log/nginx/$DOMAIN.access.log;
+
+    location / {
+        try_files \$uri \$uri/ =404;
+    }
+}
+EOL
+
+# Enable the server block by creating a symbolic link
+sudo ln -s $NGINX_AVAILABLE $NGINX_ENABLED
+
+# Test Nginx configuration
+sudo nginx -t
+
+# Reload Nginx to apply changes
+sudo systemctl reload nginx
+
+# Update /etc/hosts file
+echo "127.0.0.1 $DOMAIN" | sudo tee -a /etc/hosts
+
+echo "Domain $DOMAIN has been created and configured."
