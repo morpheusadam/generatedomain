@@ -1,53 +1,42 @@
 #!/bin/bash
 
-# Check if the script is run as root
-if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root"
-  exit
-fi
+# Prompt the user for the domain name
+read -p "Please choose domain name: " domain
 
-# Get the domain name from the user
-read -p "Enter the domain name (e.g., example.com): " DOMAIN
+# Define the domain name with .local
+domain_name="${domain}.local"
 
-# Define paths
-WEB_ROOT="/srv/http/$DOMAIN"
-APACHE_CONFIG="/etc/httpd/conf/extra/$DOMAIN.conf"
-HOSTS_FILE="/etc/hosts"
-
-# Create the web root directory
-mkdir -p $WEB_ROOT
-
-# Set permissions so that all users can read the web root directory
-chmod -R 755 $WEB_ROOT
+# Create the directory for the new domain
+sudo mkdir -p /var/www/${domain_name}
 
 # Create a simple index.html file
-echo "<html><body><h1>Hello $DOMAIN</h1></body></html>" > $WEB_ROOT/index.html
+echo "<html><body><h1>Hello ${domain_name}</h1></body></html>" | sudo tee /var/www/${domain_name}/index.html
 
-# Create the Apache virtual host configuration
-cat <<EOL > $APACHE_CONFIG
+# Create a new Apache configuration file for the domain
+sudo tee /etc/httpd/conf/extra/${domain_name}.conf > /dev/null <<EOL
 <VirtualHost *:80>
-    ServerAdmin webmaster@$DOMAIN
-    ServerName $DOMAIN
-    DocumentRoot $WEB_ROOT
-    ErrorLog /var/log/httpd/$DOMAIN-error.log
-    CustomLog /var/log/httpd/$DOMAIN-access.log combined
-    <Directory $WEB_ROOT>
-        Options Indexes FollowSymLinks
+    ServerName ${domain_name}
+    DocumentRoot /var/www/${domain_name}
+    <Directory /var/www/${domain_name}>
         AllowOverride All
         Require all granted
     </Directory>
+    ErrorLog /var/log/httpd/${domain_name}_error.log
+    CustomLog /var/log/httpd/${domain_name}_access.log combined
 </VirtualHost>
 EOL
 
-# Add the domain to the hosts file
-echo "127.0.0.1 $DOMAIN" >> $HOSTS_FILE
-
-# Enable the new site by including it in the main Apache configuration
-if ! grep -q "Include conf/extra/$DOMAIN.conf" /etc/httpd/conf/httpd.conf; then
-    echo "Include conf/extra/$DOMAIN.conf" >> /etc/httpd/conf/httpd.conf
+# Include the new configuration in the main Apache configuration file
+if ! grep -q "Include conf/extra/${domain_name}.conf" /etc/httpd/conf/httpd.conf; then
+    echo "Include conf/extra/${domain_name}.conf" | sudo tee -a /etc/httpd/conf/httpd.conf
 fi
 
 # Restart Apache to apply the changes
-systemctl restart httpd
+sudo systemctl restart httpd
 
-echo "Domain $DOMAIN has been set up and is available at http://$DOMAIN"
+# Add the domain to /etc/hosts
+if ! grep -q "127.0.0.1 ${domain_name}" /etc/hosts; then
+    echo "127.0.0.1 ${domain_name}" | sudo tee -a /etc/hosts
+fi
+
+echo "Your domain ${domain_name} has been created."
