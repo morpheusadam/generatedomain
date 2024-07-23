@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Prompt for the domain name
+read -p "Enter the domain name: " domain
+
+# Create the directory for the domain
+sudo mkdir -p /var/www/$domain
+
+# Set the correct permissions for the directory
+sudo chown -R $USER:$USER /var/www/$domain
+sudo chmod -R 755 /var/www/$domain
+
+# Create a simple index.html file
+echo "<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+    <meta charset=\"UTF-8\">
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+    <title>Welcome to $domain</title>
+</head>
+<body>
+    <h1>Hello, $domain!</h1>
+</body>
+</html>" | sudo tee /var/www/$domain/index.html
+
+# Set the correct permissions for the index.html file
+sudo chown $USER:$USER /var/www/$domain/index.html
+sudo chmod 644 /var/www/$domain/index.html
+
+# Create the virtual host configuration file
+sudo bash -c "cat > /etc/apache2/sites-available/$domain.conf <<EOF
+<VirtualHost *:80>
+    ServerAdmin webmaster@localhost
+    ServerName $domain
+    DocumentRoot /var/www/$domain
+    ErrorLog \${APACHE_LOG_DIR}/error.log
+    CustomLog \${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+EOF"
+
+# Enable the new site
+sudo a2ensite $domain.conf
+
+# Reload Apache to apply the changes
+sudo systemctl reload apache2
+
+# Add the domain to the hosts file in WSL
+echo "127.0.0.1   $domain" | sudo tee -a /etc/hosts
+
+# Add the domain to the Windows hosts file
+echo "172.25.195.166   $domain" | sudo tee -a /mnt/c/Windows/System32/drivers/etc/hosts
+
+echo "Domain $domain has been created and is available at http://$domain"

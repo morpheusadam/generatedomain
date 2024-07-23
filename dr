@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Prompt for the domain name
+read -p "Enter the domain name to remove: " domain
+
+# Disable the virtual host configuration
+sudo a2dissite $domain.conf
+
+# Remove the virtual host configuration file
+sudo rm /etc/apache2/sites-available/$domain.conf
+
+# Remove the directory for the domain
+sudo rm -rf /var/www/$domain
+
+# Remove the domain from the hosts file in WSL
+sudo sed -i "/127.0.0.1   $domain/d" /etc/hosts
+
+# Remove the domain from the Windows hosts file
+sudo sed -i "/172.25.195.166   $domain/d" /mnt/c/Windows/System32/drivers/etc/hosts
+
+# Reload Apache to apply the changes
+sudo systemctl reload apache2
+
+echo "Domain $domain has been removed."
